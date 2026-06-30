@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -61,11 +62,9 @@ val bottomNavItems = listOf(
 fun UmbrelNavGraph() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
-    val authState by authViewModel.authState
-
+    val authState by authViewModel.authState.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val currentAuthState = authState.value
 
     val showBottomBar = currentDestination?.route in bottomNavItems.map { it.screen.route }
 
@@ -100,8 +99,8 @@ fun UmbrelNavGraph() {
         NavHost(
             navController = navController,
             startDestination = when {
-                currentAuthState is com.umbrel.android.core.auth.AuthState.NeedsUrl -> Screen.Setup.route
-                currentAuthState is com.umbrel.android.core.auth.AuthState.NeedsLogin -> Screen.Login.route
+                authState is com.umbrel.android.core.auth.AuthState.NeedsUrl -> Screen.Setup.route
+                authState is com.umbrel.android.core.auth.AuthState.NeedsLogin -> Screen.Login.route
                 else -> Screen.Dashboard.route
             },
             modifier = Modifier.padding(innerPadding),

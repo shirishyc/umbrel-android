@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.serializer
 import javax.inject.Inject
 
 data class MyAppsUiState(
@@ -34,7 +35,7 @@ class MyAppsViewModel @Inject constructor(
         loadApps()
         // Receive live app state changes
         viewModelScope.launch {
-            wsClient.events<Map<String, String>>(UmbrelEvents.APPS_STATE_CHANGED)
+            wsClient.events(UmbrelEvents.APPS_STATE_CHANGED, serializer<Map<String, String>>())
                 .collect { loadApps(forceRefresh = true) }
         }
     }

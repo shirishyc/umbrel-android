@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.serializer
 import javax.inject.Inject
 
 data class SystemStatusUiState(
@@ -35,11 +36,11 @@ class SystemStatusViewModel @Inject constructor(
     init {
         load()
         viewModelScope.launch {
-            wsClient.events<Map<String, String>>(UmbrelEvents.HARDWARE_UPDATED)
+            wsClient.events(UmbrelEvents.HARDWARE_UPDATED, serializer<Map<String, String>>())
                 .collect { load(forceRefresh = true) }
         }
         viewModelScope.launch {
-            wsClient.events<Map<String, String>>(UmbrelEvents.SYSTEM_UPDATE_STATUS)
+            wsClient.events(UmbrelEvents.SYSTEM_UPDATE_STATUS, serializer<Map<String, String>>())
                 .collect { load(forceRefresh = true) }
         }
     }

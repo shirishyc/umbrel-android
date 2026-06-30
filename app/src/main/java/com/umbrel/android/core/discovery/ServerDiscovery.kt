@@ -74,7 +74,7 @@ class ServerDiscovery @Inject constructor(
                             ipAddress = address,
                             port = info.port,
                             url = "http://$address:${info.port}",
-                            version = info.getTextString("version"),
+                            version = info.getPropertyString("version"),
                         )
                         trySend(server)
                     }
@@ -126,7 +126,7 @@ class ServerDiscovery @Inject constructor(
         ) return true
 
         // Check TXT records for umbrel-specific fields
-        val serverField = info.getTextString("server")
+        val serverField = info.getPropertyString("server")
         if (serverField?.contains("umbrel", ignoreCase = true) == true) return true
 
         return false

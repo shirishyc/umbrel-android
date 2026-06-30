@@ -197,14 +197,13 @@ private fun processImage(
         .addOnSuccessListener { barcodes ->
             for (barcode in barcodes) {
                 barcode.rawValue?.let { value ->
-                    // Extract URL — QR could contain plain URL or just an IP
                     val url = when {
                         value.startsWith("http://") || value.startsWith("https://") -> value
                         value.startsWith("umbrel") -> "http://$value.local"
                         else -> "http://$value"
                     }
                     onResult(url)
-                    break // Only take the first barcode
+                    return@addOnSuccessListener
                 }
             }
         }

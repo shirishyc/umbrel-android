@@ -237,17 +237,16 @@ class TrpcWebSocketClient @Inject constructor(
      * Flow that emits decoded event data for a specific event type.
      * Automatically subscribes on collection and unsubscribes on cancellation.
      */
-    inline fun <reified T> events(event: String): Flow<T> = callbackFlow {
+    fun <T> events(event: String, deserializer: kotlinx.serialization.KSerializer<T>): Flow<T> = callbackFlow {
         val id = subscribe(event)
 
         val collectorJob = GlobalScope.launch {
             for (msg in _events) {
                 if (msg.id == id && msg.result?.data != null) {
                     try {
-                        val data = json.decodeFromString<T>(msg.result.data.toString())
+                        val data = json.decodeFromString(deserializer, msg.result.data.toString())
                         trySend(data)
                     } catch (_: Exception) {
-                        // Type mismatch or malformed, skip
                     }
                 }
             }

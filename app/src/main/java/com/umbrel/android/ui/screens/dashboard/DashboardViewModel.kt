@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.launch
+import kotlinx.serialization.serializer
 import javax.inject.Inject
 
 data class DashboardUiState(
@@ -62,17 +64,17 @@ class DashboardViewModel @Inject constructor(
      */
     private fun observeRealTimeEvents() {
         viewModelScope.launch {
-            wsClient.events<Map<String, String>>(UmbrelEvents.APPS_STATE_CHANGED)
+            wsClient.events(UmbrelEvents.APPS_STATE_CHANGED, serializer<Map<String, String>>())
                 .collect { loadDashboard(forceRefresh = true) }
         }
 
         viewModelScope.launch {
-            wsClient.events<Map<String, String>>(UmbrelEvents.HARDWARE_UPDATED)
+            wsClient.events(UmbrelEvents.HARDWARE_UPDATED, kotlinx.serialization.serializer<Map<String, String>>())
                 .collect { loadDashboard(forceRefresh = true) }
         }
 
         viewModelScope.launch {
-            wsClient.events<Map<String, String>>(UmbrelEvents.SYSTEM_UPDATE_STATUS)
+            wsClient.events(UmbrelEvents.SYSTEM_UPDATE_STATUS, kotlinx.serialization.serializer<Map<String, String>>())
                 .collect { loadDashboard(forceRefresh = true) }
         }
     }
