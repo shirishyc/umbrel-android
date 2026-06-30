@@ -56,10 +56,26 @@ class AuthRepository @Inject constructor(
             val cleanUrl = url.trimEnd('/')
             trpcClient.setBaseUrl(cleanUrl)
 
-            // Test connection by hitting system.status (public endpoint)
-            val result = trpcClient.query<Map<String, kotlinx.serialization.json.JsonElement>>(
+            // Step 1: Quick connectivity test
+            val connectivityResult = trpcClient.checkConnectivity()
+            if (connectivityResult.isFailure) {
+                val error = connectivityResult.exceptionOrNull()
+                val message = when {
+                    error?.message?.contains("timeout", ignoreCase = true) == true ->
+                        "Connection timed out. Check that: \n• Your Umbrel is powered on\n• Both devices are on the same WiFi network\n• The URL is correct"
+                    error?.message?.contains("Unable to resolve host", ignoreCase = true) == true ->
+                        "Could not find '$url'. Try using the IP address instead of the hostname."
+                    error?.message?.contains("Connection refused", ignoreCase = true) == true ->
+                        "Connection refused. Is UmbrelOS running on port 80?"
+                    else -> error?.message ?: "Connection failed"
+                }
+                throw Exception(message)
+            }
+
+            // Step 2: Verify it's an UmbrelOS by hitting system.status
+            val result = trpcClient.query<kotlinx.serialization.json.JsonObject>(
                 procedure = "system.status",
-                deserializer = serializer(),
+                deserializer = kotlinx.serialization.serializer(),
             )
             result.getOrThrow()
 
@@ -75,12 +91,11 @@ class AuthRepository @Inject constructor(
     suspend fun login(password: String): Result<String> {
         return runCatching {
             val params = mapOf("password" to JsonPrimitive(password))
-            val result = trpcClient.mutation<Map<String, kotlinx.serialization.json.JsonElement>>(
+            val data = trpcClient.mutation<kotlinx.serialization.json.JsonObject>(
                 procedure = "user.login",
                 params = params,
-                deserializer = serializer(),
-            )
-            val data = result.getOrThrow()
+                deserializer = kotlinx.serialization.serializer(),
+            ).getOrThrow()
 
             // Extract the token from the login response
             val token = data["token"]?.let {
@@ -88,7 +103,7 @@ class AuthRepository @Inject constructor(
                     is JsonPrimitive -> it.content
                     else -> null
                 }
-            } ?: throw Exception("No token in login response")
+            } ?: throw Exception("Login failed: no token in response")
 
             // Persist token
             tokenStore.jwtToken = token

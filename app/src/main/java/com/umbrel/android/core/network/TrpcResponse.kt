@@ -1,35 +1,22 @@
 package com.umbrel.android.core.network
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /**
  * tRPC HTTP transport envelope.
  *
  * tRPC uses JSON-RPC-like protocol over HTTP POST.
- * The body format is:
- *   { "method": "query"|"mutation", "params": ["procedure.path", {...params}?] }
+ * Body format: { "method": "query|mutation", "params": ["procedure.path", {...params}?] }
  */
 @Serializable
 data class TrpcEnvelope(
-    val method: String, // "query" or "mutation"
-    val params: List<kotlinx.serialization.json.JsonElement> = emptyList(),
+    val method: String,
+    val params: List<JsonElement> = emptyList(),
 )
 
 /**
- * Successful tRPC response wrapper.
- */
-@Serializable
-data class TrpcSuccess<T>(
-    val result: TrpcResult<T>,
-)
-
-@Serializable
-data class TrpcResult<T>(
-    val data: T,
-)
-
-/**
- * Error tRPC response.
+ * Error response from tRPC server.
  */
 @Serializable
 data class TrpcErrorResponse(
@@ -40,4 +27,18 @@ data class TrpcErrorResponse(
 data class TrpcErrorDetail(
     val message: String? = null,
     val code: Int = -1,
+)
+
+/**
+ * WebSocket server message from tRPC subscription.
+ */
+@Serializable
+data class WsServerMessage(
+    val id: Int? = null,
+    val result: WsResult? = null,
+)
+
+@Serializable
+data class WsResult(
+    val data: JsonElement? = null,
 )

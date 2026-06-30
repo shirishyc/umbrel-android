@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
@@ -55,20 +54,6 @@ enum class ConnectionState {
     CONNECTING,
     CONNECTED,
 }
-
-/**
- * Server message envelope from tRPC WebSocket subscription.
- */
-@Serializable
-data class WsServerMessage(
-    val id: Int? = null,
-    val result: WsResult? = null,
-)
-
-@Serializable
-data class WsResult(
-    val data: JsonElement? = null,
-)
 
 /**
  * WebSocket client for receiving real-time tRPC subscription updates from UmbrelOS.

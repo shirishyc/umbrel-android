@@ -2,7 +2,9 @@ package com.umbrel.android.core.network
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
 import okhttp3.MediaType.Companion.toMediaType
@@ -15,9 +17,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
  *
  * Communicates with the UmbrelOS backend via tRPC over HTTP POST.
  * All calls go to `http(s)://<host>/trpc`.
- *
- * Auth is handled by the caller providing a JWT token, which is added
- * as an Authorization: Bearer header by OkHttp's AuthInterceptor.
  */
 @Singleton
 class TrpcClient @Inject constructor(
@@ -27,38 +26,47 @@ class TrpcClient @Inject constructor(
     private var baseUrl: String = ""
     private var authToken: String? = null
 
-    /** Set the server URL (e.g. "http://192.168.1.100" or "http://umbrel.local") */
     fun setBaseUrl(url: String) {
         baseUrl = url.trimEnd('/')
     }
 
     fun getBaseUrl(): String = baseUrl
 
-    /** Set the JWT auth token */
     fun setAuthToken(token: String?) {
         authToken = token
     }
 
-    /** Execute a tRPC query (read operation) */
+    /** Quick connectivity test — returns true if the server responds at /trpc */
+    suspend fun checkConnectivity(): Result<Boolean> = runCatching {
+        val result = queryRaw("system.status")
+        result.isNotEmpty()
+    }
+
+    /** Execute a tRPC query with a typed deserializer */
     suspend fun <T> query(
         procedure: String,
         params: Map<String, JsonElement>? = null,
         deserializer: kotlinx.serialization.KSerializer<T>,
     ): Result<T> = execute("query", procedure, params, deserializer)
 
-    /** Execute a tRPC mutation (write operation) */
+    /** Execute a tRPC mutation with a typed deserializer */
     suspend fun <T> mutation(
         procedure: String,
         params: Map<String, JsonElement>? = null,
         deserializer: kotlinx.serialization.KSerializer<T>,
     ): Result<T> = execute("mutation", procedure, params, deserializer)
 
-    private suspend fun <T> execute(
+    /**
+     * Execute a tRPC call and return the raw inner JSON element from result.data.
+     * Avoids generic type erasure issues with TrpcSuccess<T>.
+     */
+    private suspend fun queryRaw(procedure: String): JsonElement = executeRaw("query", procedure, null)
+
+    private suspend fun executeRaw(
         method: String,
         procedure: String,
         params: Map<String, JsonElement>?,
-        deserializer: kotlinx.serialization.KSerializer<T>,
-    ): Result<T> = runCatching {
+    ): JsonElement {
         val paramList = mutableListOf(json.encodeToJsonElement(procedure))
         if (params != null) {
             paramList.add(json.encodeToJsonElement(params))
@@ -77,18 +85,34 @@ class TrpcClient @Inject constructor(
         }
 
         val response = client.newCall(requestBuilder.build()).execute()
-        val responseBody = response.body?.string() ?: throw Exception("Empty response")
+        val responseBody = response.body?.string() ?: throw Exception("Empty response from server")
 
         if (!response.isSuccessful) {
-            val errorResponse = try {
+            val errorDetail = try {
                 json.decodeFromString<TrpcErrorResponse>(responseBody)
             } catch (_: Exception) {
                 null
             }
-            throw Exception(errorResponse?.error?.message ?: "HTTP ${response.code}")
+            throw Exception(errorDetail?.error?.message ?: "Server returned HTTP ${response.code}")
         }
 
-        val success = json.decodeFromString<TrpcSuccess<T>>(responseBody)
-        success.result.data
+        // Parse as raw JSON to avoid generic type erasure
+        val root = json.parseToJsonElement(responseBody).jsonObject
+        val resultObj = root["result"]?.jsonObject
+            ?: throw Exception("Invalid tRPC response: missing 'result'")
+        val data = resultObj["data"]
+            ?: throw Exception("Invalid tRPC response: missing 'result.data'")
+
+        return data
+    }
+
+    private suspend fun <T> execute(
+        method: String,
+        procedure: String,
+        params: Map<String, JsonElement>?,
+        deserializer: kotlinx.serialization.KSerializer<T>,
+    ): Result<T> = runCatching {
+        val data = executeRaw(method, procedure, params)
+        json.decodeFromJsonElement(deserializer, data)
     }
 }
