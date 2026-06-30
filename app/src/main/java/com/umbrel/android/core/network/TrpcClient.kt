@@ -53,7 +53,7 @@ class TrpcClient @Inject constructor(
     /**
      * Step 2: Try a raw HTTP request and return the full response for debugging.
      */
-    suspend fun rawTrpcCall(procedure: String, body: String = "{}"): Result<String> = runCatching {
+    suspend fun rawTrpcCall(procedure: String, body: String = "[{}]"): Result<String> = runCatching {
         val request = Request.Builder()
             .url("$baseUrl/trpc/$procedure?batch=1")
             .post(body.toRequestBody("application/json".toMediaType()))
@@ -95,10 +95,13 @@ class TrpcClient @Inject constructor(
         procedure: String,
         params: Map<String, JsonElement>?,
     ): JsonElement {
+        // When using batch=1, tRPC v10 requires the body to be a JSON ARRAY
         val inputJson = if (params != null) {
-            json.encodeToString(kotlinx.serialization.serializer(), params)
+            // Wrap in array: [{"password":"xxx"}]
+            val single = json.encodeToJsonElement(kotlinx.serialization.serializer<Map<String, JsonElement>>(), params)
+            json.encodeToString(kotlinx.serialization.serializer<List<kotlinx.serialization.json.JsonElement>>(), listOf(single))
         } else {
-            "{}"
+            "[{}]"
         }
 
         val request = Request.Builder()
