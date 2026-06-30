@@ -70,7 +70,7 @@ class ServerDiscovery @Inject constructor(
 
                         val server = DiscoveredServer(
                             name = serverName.removeSuffix("._http._tcp.local."),
-                            host = info.server ?? address,
+                            host = info.server ?: address,
                             ipAddress = address,
                             port = info.port,
                             url = "http://$address:${info.port}",
