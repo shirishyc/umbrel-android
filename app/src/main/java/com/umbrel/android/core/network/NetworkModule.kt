@@ -59,16 +59,16 @@ object NetworkModule {
         }
 
         // Custom DNS resolver that handles .local (mDNS) addresses
-        val mdnsDns = Dns { hostname ->
-            try {
-                // First try default DNS
-                Dns.SYSTEM.lookup(hostname)
-            } catch (e: java.net.UnknownHostException) {
-                if (hostname.endsWith(".local")) {
-                    // Retry with Java's InetAddress which may use mDNS on Android
-                    java.net.InetAddress.getAllByName(hostname).toList()
-                } else {
-                    throw e
+        val mdnsDns = object : Dns {
+            override fun lookup(hostname: String): List<java.net.InetAddress> {
+                return try {
+                    Dns.SYSTEM.lookup(hostname)
+                } catch (e: java.net.UnknownHostException) {
+                    if (hostname.endsWith(".local")) {
+                        java.net.InetAddress.getAllByName(hostname).toList()
+                    } else {
+                        throw e
+                    }
                 }
             }
         }
