@@ -13,7 +13,7 @@ class UserApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun getProfile(): Result<UserProfile> = runCatching {
-        trpc.query("user.get", deserializer = serializer()).getOrThrow()
+        trpc.query("user.get", deserializer = serializer<UserProfile>()).getOrThrow()
     }
 
     suspend fun setName(name: String): Result<Unit> = runCatching {

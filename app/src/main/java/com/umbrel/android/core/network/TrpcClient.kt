@@ -65,7 +65,7 @@ class TrpcClient @Inject constructor(
         }
 
         val envelope = TrpcEnvelope(method = method, params = paramList)
-        val body = json.encodeToString(envelope)
+        val body = json.encodeToString(TrpcEnvelope.serializer(), envelope)
             .toRequestBody("application/json".toMediaType())
 
         val requestBuilder = Request.Builder()

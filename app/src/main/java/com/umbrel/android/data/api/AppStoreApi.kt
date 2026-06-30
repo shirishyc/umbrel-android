@@ -13,18 +13,18 @@ class AppStoreApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun getRegistry(): Result<List<AppInfo>> = runCatching {
-        trpc.query("appStore.registry", deserializer = serializer()).getOrThrow()
+        trpc.query("appStore.registry", deserializer = serializer<List<AppInfo>>()).getOrThrow()
     }
 
     suspend fun getCategories(): Result<List<AppCategory>> = runCatching {
-        trpc.query("appStore.categories", deserializer = serializer()).getOrThrow()
+        trpc.query("appStore.categories", deserializer = serializer<List<AppCategory>>()).getOrThrow()
     }
 
     suspend fun search(query: String): Result<List<AppInfo>> = runCatching {
         trpc.query(
             "appStore.search",
             params = mapOf("query" to JsonPrimitive(query)),
-            deserializer = serializer(),
+            deserializer = serializer<List<AppInfo>>(),
         ).getOrThrow()
     }
 }

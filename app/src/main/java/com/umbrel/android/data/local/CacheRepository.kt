@@ -135,108 +135,107 @@ class CacheRepository @Inject constructor(
     }
 
     /** Fallback: if cached data exists, return it even if stale, rather than propagating an error */
-    private suspend fun <T> Result<T>.recoverIfCached(cached: T?, toData: (T) -> T): Result<T> {
+    private suspend fun <T, C> Result<T>.recoverIfCached(cached: C?, toData: (C) -> T): Result<T> {
         return if (this.isFailure && cached != null) {
             Result.success(toData(cached))
         } else {
             this
         }
     }
+
+    // ─── Mapping extensions (private to class) ─────────────────────────────
+
+    private fun AppInfo.toCachedApp() = CachedApp(
+        id = id,
+        title = title,
+        author = author,
+        description = description,
+        version = version,
+        state = state,
+        icon = icon,
+        category = category,
+        dockerStatus = dockerStatus,
+        port = port,
+    )
+
+    private fun CachedApp.toAppInfo() = AppInfo(
+        id = id,
+        title = title,
+        author = author,
+        description = description,
+        version = version,
+        state = state,
+        icon = icon,
+        category = category,
+        dockerStatus = dockerStatus,
+        port = port,
+    )
+
+    private fun SystemStatus.toCached() = CachedSystemInfo(
+        version = version,
+        versionName = versionName,
+        updateAvailable = updateAvailable,
+        updateVersion = updateVersion,
+        uptime = uptime,
+        hostname = hostname,
+    )
+
+    private fun CachedSystemInfo.toSystemStatus() = SystemStatus(
+        version = version,
+        versionName = versionName,
+        updateAvailable = updateAvailable,
+        updateVersion = updateVersion,
+        uptime = uptime,
+        hostname = hostname,
+    )
+
+    private fun HardwareInfo.toCached() = CachedHardware(
+        cpuLoad = cpu?.load,
+        cpuCores = cpu?.cores,
+        cpuTemperature = cpuTemperature,
+        memoryTotal = memory?.total ?: 0,
+        memoryUsed = memory?.used ?: 0,
+        memoryAvailable = memory?.available ?: 0,
+        diskTotal = disk?.total ?: 0,
+        diskUsed = disk?.used ?: 0,
+        diskAvailable = disk?.available ?: 0,
+    )
+
+    private fun CachedHardware.toHardwareInfo() = HardwareInfo(
+        cpu = if (cpuLoad != null) com.umbrel.android.data.models.CpuInfo(
+            load = cpuLoad,
+            cores = cpuCores,
+            temperature = cpuTemperature,
+        ) else null,
+        memory = com.umbrel.android.data.models.MemoryInfo(
+            total = memoryTotal,
+            used = memoryUsed,
+            available = memoryAvailable,
+        ),
+        disk = com.umbrel.android.data.models.DiskInfo(
+            total = diskTotal,
+            used = diskUsed,
+            available = diskAvailable,
+        ),
+        cpuTemperature = cpuTemperature,
+    )
+
+    private fun FileEntry.toCached(directoryPath: String) = CachedFileEntry(
+        path = this.path,
+        directoryPath = directoryPath,
+        name = name,
+        type = type,
+        size = size,
+        mime = mime,
+        modifiedAt = modifiedAt,
+    )
+
+    private fun CachedFileEntry.toFileEntry() = FileEntry(
+        name = name,
+        path = path,
+        type = type,
+        size = size,
+        mime = mime,
+        modifiedAt = modifiedAt,
+    )
 }
-
-// ─── Mapping extensions ─────────────────────────────────────────────────
-
-
-private fun AppInfo.toCachedApp() = CachedApp(
-    id = id,
-    title = title,
-    author = author,
-    description = description,
-    version = version,
-    state = state,
-    icon = icon,
-    category = category,
-    dockerStatus = dockerStatus,
-    port = port,
-)
-
-private fun CachedApp.toAppInfo() = AppInfo(
-    id = id,
-    title = title,
-    author = author,
-    description = description,
-    version = version,
-    state = state,
-    icon = icon,
-    category = category,
-    dockerStatus = dockerStatus,
-    port = port,
-)
-
-private fun SystemStatus.toCached() = CachedSystemInfo(
-    version = version,
-    versionName = versionName,
-    updateAvailable = updateAvailable,
-    updateVersion = updateVersion,
-    uptime = uptime,
-    hostname = hostname,
-)
-
-private fun CachedSystemInfo.toSystemStatus() = SystemStatus(
-    version = version,
-    versionName = versionName,
-    updateAvailable = updateAvailable,
-    updateVersion = updateVersion,
-    uptime = uptime,
-    hostname = hostname,
-)
-
-private fun HardwareInfo.toCached() = CachedHardware(
-    cpuLoad = cpu?.load,
-    cpuCores = cpu?.cores,
-    cpuTemperature = cpuTemperature,
-    memoryTotal = memory?.total ?: 0,
-    memoryUsed = memory?.used ?: 0,
-    memoryAvailable = memory?.available ?: 0,
-    diskTotal = disk?.total ?: 0,
-    diskUsed = disk?.used ?: 0,
-    diskAvailable = disk?.available ?: 0,
-)
-
-private fun CachedHardware.toHardwareInfo() = HardwareInfo(
-    cpu = if (cpuLoad != null) com.umbrel.android.data.models.CpuInfo(
-        load = cpuLoad,
-        cores = cpuCores,
-        temperature = cpuTemperature,
-    ) else null,
-    memory = com.umbrel.android.data.models.MemoryInfo(
-        total = memoryTotal,
-        used = memoryUsed,
-        available = memoryAvailable,
-    ),
-    disk = com.umbrel.android.data.models.DiskInfo(
-        total = diskTotal,
-        used = diskUsed,
-        available = diskAvailable,
-    ),
-    cpuTemperature = cpuTemperature,
-)
-
-private fun FileEntry.toCached(directoryPath: String) = CachedFileEntry(
-    path = this.path,
-    directoryPath = directoryPath,
-    name = name,
-    type = type,
-    size = size,
-    mime = mime,
-    modifiedAt = modifiedAt,
-)
-
-private fun CachedFileEntry.toFileEntry() = FileEntry(
-    name = name,
-    path = path,
-    type = type,
-    size = size,
-    mime = mime,
-    modifiedAt = modifiedAt,
-)

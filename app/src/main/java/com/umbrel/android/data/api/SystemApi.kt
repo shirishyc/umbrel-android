@@ -14,11 +14,11 @@ class SystemApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun getStatus(): Result<SystemStatus> = runCatching {
-        trpc.query("system.status", deserializer = serializer()).getOrThrow()
+        trpc.query("system.status", deserializer = serializer<SystemStatus>()).getOrThrow()
     }
 
     suspend fun getSoftwareUpdate(): Result<SoftwareUpdate> = runCatching {
-        trpc.query("system.softwareUpdate", deserializer = serializer()).getOrThrow()
+        trpc.query("system.softwareUpdate", deserializer = serializer<SoftwareUpdate>()).getOrThrow()
     }
 
     suspend fun reboot(): Result<Unit> = runCatching {

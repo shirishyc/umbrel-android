@@ -13,7 +13,7 @@ class NotificationsApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun list(): Result<List<Notification>> = runCatching {
-        trpc.query("notifications.list", deserializer = serializer()).getOrThrow()
+        trpc.query("notifications.list", deserializer = serializer<List<Notification>>()).getOrThrow()
     }
 
     suspend fun dismiss(id: String): Result<Unit> = runCatching {

@@ -13,7 +13,7 @@ class ShortcutsApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun list(): Result<List<Shortcut>> = runCatching {
-        trpc.query("shortcuts.list", deserializer = serializer()).getOrThrow()
+        trpc.query("shortcuts.list", deserializer = serializer<List<Shortcut>>()).getOrThrow()
     }
 
     suspend fun create(url: String, title: String, icon: String? = null): Result<Shortcut> = runCatching {
@@ -22,7 +22,7 @@ class ShortcutsApi @Inject constructor(
             "title" to JsonPrimitive(title),
         )
         icon?.let { params["icon"] = JsonPrimitive(it) }
-        trpc.mutation("shortcuts.create", params = params, deserializer = serializer()).getOrThrow()
+        trpc.mutation("shortcuts.create", params = params, deserializer = serializer<Shortcut>()).getOrThrow()
     }
 
     suspend fun delete(url: String): Result<Unit> = runCatching {

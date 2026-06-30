@@ -13,11 +13,11 @@ class BackupsApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun list(): Result<List<Backup>> = runCatching {
-        trpc.query("backups.list", deserializer = serializer()).getOrThrow()
+        trpc.query("backups.list", deserializer = serializer<List<Backup>>()).getOrThrow()
     }
 
     suspend fun create(): Result<Backup> = runCatching {
-        trpc.mutation("backups.create", deserializer = serializer()).getOrThrow()
+        trpc.mutation("backups.create", deserializer = serializer<Backup>()).getOrThrow()
     }
 
     suspend fun restore(id: String): Result<Unit> = runCatching {

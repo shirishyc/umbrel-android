@@ -1,10 +1,8 @@
 package com.umbrel.android.ui.screens.qrscanner
 
 import android.Manifest
-import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.util.Log
-import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -39,6 +37,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -116,7 +115,7 @@ fun QrScannerScreen(
 
                             // QR code analyzer
                             val analyzer = ImageAnalysis.Builder()
-                                .setTargetResolution(Size(1280, 720))
+                                .setTargetResolution(android.util.Size(1280, 720))
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
 

@@ -14,14 +14,14 @@ class AppsApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun list(): Result<List<AppInfo>> = runCatching {
-        trpc.query("apps.list", deserializer = serializer()).getOrThrow()
+        trpc.query("apps.list", deserializer = serializer<List<AppInfo>>()).getOrThrow()
     }
 
     suspend fun getState(appId: String): Result<AppState> = runCatching {
         trpc.query(
             "apps.state",
             params = mapOf("appId" to JsonPrimitive(appId)),
-            deserializer = serializer(),
+            deserializer = serializer<AppState>(),
         ).getOrThrow()
     }
 

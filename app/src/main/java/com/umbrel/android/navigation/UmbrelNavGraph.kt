@@ -65,6 +65,7 @@ fun UmbrelNavGraph() {
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val currentAuthState = authState.value
 
     val showBottomBar = currentDestination?.route in bottomNavItems.map { it.screen.route }
 
@@ -99,8 +100,8 @@ fun UmbrelNavGraph() {
         NavHost(
             navController = navController,
             startDestination = when {
-                authState is com.umbrel.android.core.auth.AuthState.NeedsUrl -> Screen.Setup.route
-                authState is com.umbrel.android.core.auth.AuthState.NeedsLogin -> Screen.Login.route
+                currentAuthState is com.umbrel.android.core.auth.AuthState.NeedsUrl -> Screen.Setup.route
+                currentAuthState is com.umbrel.android.core.auth.AuthState.NeedsLogin -> Screen.Login.route
                 else -> Screen.Dashboard.route
             },
             modifier = Modifier.padding(innerPadding),
@@ -164,7 +165,7 @@ fun UmbrelNavGraph() {
                 arguments = listOf(navArgument("path") { type = NavType.StringType; defaultValue = "Home" }),
             ) { backStackEntry ->
                 val path = backStackEntry.arguments?.getString("path") ?: "Home"
-                FilesScreen(path = path)
+                FilesScreen(initialPath = path)
             }
             composable(
                 route = Screen.FilePreview.route,

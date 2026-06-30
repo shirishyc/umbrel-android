@@ -12,10 +12,10 @@ class HardwareApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun get(): Result<HardwareInfo> = runCatching {
-        trpc.query("hardware.get", deserializer = serializer()).getOrThrow()
+        trpc.query("hardware.get", deserializer = serializer<HardwareInfo>()).getOrThrow()
     }
 
     suspend fun getCpuTemperature(): Result<Double> = runCatching {
-        trpc.query("hardware.cpuTemperature", deserializer = serializer()).getOrThrow()
+        trpc.query("hardware.cpuTemperature", deserializer = serializer<Double>()).getOrThrow()
     }
 }

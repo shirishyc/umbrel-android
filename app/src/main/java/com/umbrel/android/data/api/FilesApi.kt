@@ -17,7 +17,7 @@ class FilesApi @Inject constructor(
         trpc.query(
             "files.list",
             params = mapOf("path" to JsonPrimitive(path)),
-            deserializer = serializer(),
+            deserializer = serializer<List<FileEntry>>(),
         ).getOrThrow()
     }
 
@@ -25,7 +25,7 @@ class FilesApi @Inject constructor(
         trpc.query(
             "files.getInfo",
             params = mapOf("path" to JsonPrimitive(path)),
-            deserializer = serializer(),
+            deserializer = serializer<FileInfo>(),
         ).getOrThrow()
     }
 

@@ -14,15 +14,15 @@ class WifiApi @Inject constructor(
     private val trpc: TrpcClient,
 ) {
     suspend fun scan(): Result<List<WifiNetwork>> = runCatching {
-        trpc.query("wifi.scan", deserializer = serializer()).getOrThrow()
+        trpc.query("wifi.scan", deserializer = serializer<List<WifiNetwork>>()).getOrThrow()
     }
 
     suspend fun getNetworks(): Result<List<WifiNetwork>> = runCatching {
-        trpc.query("wifi.networks", deserializer = serializer()).getOrThrow()
+        trpc.query("wifi.networks", deserializer = serializer<List<WifiNetwork>>()).getOrThrow()
     }
 
     suspend fun getConnected(): Result<WifiConnectionStatus?> = runCatching {
-        trpc.query("wifi.connected", deserializer = serializer()).getOrThrow()
+        trpc.query("wifi.connected", deserializer = serializer<WifiConnectionStatus?>()).getOrThrow()
     }
 
     suspend fun connect(ssid: String, password: String? = null): Result<Unit> = runCatching {

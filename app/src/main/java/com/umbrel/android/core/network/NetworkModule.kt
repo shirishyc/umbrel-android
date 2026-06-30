@@ -50,7 +50,7 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(cookieJar: CookieJar): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = if (com.umbrel.android.BuildConfig.DEBUG) {
+            level = if (true) {
                 HttpLoggingInterceptor.Level.BODY
             } else {
                 HttpLoggingInterceptor.Level.NONE
