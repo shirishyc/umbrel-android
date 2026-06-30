@@ -41,7 +41,6 @@ datastore-preferences = { group = "androidx.datastore", name = "datastore-prefer
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security-crypto" }
 jmdns = { group = "org.jmdns", name = "jmdns", version.ref = "jmdns" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
-coil-okhttp = { group = "io.coil-kt", name = "coil-okhttp", version.ref = "coil" }
 camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }

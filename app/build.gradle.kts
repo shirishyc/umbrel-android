@@ -87,7 +87,6 @@ dependencies {
 
     // Image Loading
     implementation(libs.coil.compose)
-    implementation(libs.coil.okhttp)
 
     // Camera + QR Scanning
     implementation(libs.camerax.core)
