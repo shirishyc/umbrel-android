@@ -12,6 +12,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.Cookie
 import okhttp3.CookieJar
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.ConcurrentHashMap
@@ -57,11 +58,27 @@ object NetworkModule {
             }
         }
 
+        // Custom DNS resolver that handles .local (mDNS) addresses
+        val mdnsDns = Dns { hostname ->
+            try {
+                // First try default DNS
+                Dns.SYSTEM.lookup(hostname)
+            } catch (e: java.net.UnknownHostException) {
+                if (hostname.endsWith(".local")) {
+                    // Retry with Java's InetAddress which may use mDNS on Android
+                    java.net.InetAddress.getAllByName(hostname).toList()
+                } else {
+                    throw e
+                }
+            }
+        }
+
         return OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .cookieJar(cookieJar)
+            .dns(mdnsDns)
             .addInterceptor(logging)
             .build()
     }
