@@ -9,42 +9,42 @@ import android.webkit.MimeTypeMap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Handles file uploads and downloads via the UmbrelOS Files REST API.
  *
- * Uses cookie-based auth (UMBREL_PROXY_TOKEN), which is automatically
- * handled by the OkHttp CookieJar.
- *
- * REST endpoints:
- *   GET  /api/files/download?path=<virtual_path>
- *   POST /api/files/upload?path=<virtual_path>
- *   GET  /api/files/thumbnail/<hash>
+ * Uses cookie-based auth (UMBREL_PROXY_TOKEN), handled automatically
+ * by the shared OkHttp CookieJar.
  */
 @Singleton
 class FileTransferService @Inject constructor(
-    @FileTransferClient private val client: OkHttpClient,
     @ApplicationContext private val context: Context,
 ) {
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .build()
+
     private var baseUrl: String = ""
 
     fun configure(url: String) {
         baseUrl = url.trimEnd('/')
     }
 
-    /**
-     * Download a file from UmbrelOS to the device's Downloads folder.
-     * Returns the local file path on success.
-     */
+    fun getBaseUrl(): String = baseUrl
+
     suspend fun downloadFile(virtualPath: String): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
@@ -60,14 +60,12 @@ class FileTransferService @Inject constructor(
             val body = response.body ?: throw Exception("Empty response body")
             val fileName = virtualPath.substringAfterLast("/").ifBlank { "download" }
 
-            // Save to device Downloads folder
             val downloadsDir = Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOWNLOADS
             )
             downloadsDir.mkdirs()
             val file = File(downloadsDir, fileName)
 
-            // Handle duplicate filenames
             var outputFile = file
             var counter = 1
             while (outputFile.exists()) {
@@ -87,7 +85,6 @@ class FileTransferService @Inject constructor(
                 }
             }
 
-            // Notify MediaStore on newer Android versions
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val values = ContentValues().apply {
                     put(MediaStore.Downloads.DISPLAY_NAME, outputFile.name)
@@ -103,11 +100,6 @@ class FileTransferService @Inject constructor(
         }
     }
 
-    /**
-     * Upload a file to UmbrelOS.
-     * @param virtualPath The destination path on the Umbrel (e.g. "Home/uploads")
-     * @param localFile The local file to upload
-     */
     suspend fun uploadFile(virtualPath: String, localFile: File): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val mimeType = MimeTypeMap.getSingleton()
@@ -135,22 +127,11 @@ class FileTransferService @Inject constructor(
         }
     }
 
-    /**
-     * Get the download URL for a file (for use with Coil/Glide for image loading).
-     */
     fun getDownloadUrl(virtualPath: String): String {
         return "$baseUrl/api/files/download?path=$virtualPath"
     }
 
-    /**
-     * Get the thumbnail URL for a file.
-     */
     fun getThumbnailUrl(virtualPath: String): String {
         return "$baseUrl/api/files/thumbnail/$virtualPath"
     }
-
-    /**
-     * Get the base URL.
-     */
-    fun getBaseUrl(): String = baseUrl
 }

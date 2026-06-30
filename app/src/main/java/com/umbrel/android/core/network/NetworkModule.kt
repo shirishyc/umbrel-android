@@ -68,19 +68,6 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    @FileTransferClient
-    fun provideFileTransferClient(cookieJar: CookieJar): OkHttpClient {
-        return OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .cookieJar(cookieJar)
-            .build()
-    }
-
-    @Provides
-    @Singleton
     fun provideTrpcClient(
         client: OkHttpClient,
         json: Json,
