@@ -3,7 +3,7 @@ package com.umbrel.android.core.network
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,10 +13,14 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Lightweight Kotlin-native tRPC client.
+ * Kotlin-native tRPC HTTP client.
  *
- * Communicates with the UmbrelOS backend via tRPC over HTTP POST.
- * All calls go to `http(s)://<host>/trpc`.
+ * tRPC v10 HTTP transport protocol:
+ *   - Query:  GET  /trpc/{procedure}?batch=1&input={}
+ *   - Mutation: POST /trpc/{procedure} with body = JSON input
+ *   - Response: [{ "result": { "data": ... } }]  (array, for batch=1)
+ *
+ * Auth: Authorization: Bearer <token> header
  */
 @Singleton
 class TrpcClient @Inject constructor(
@@ -26,93 +30,100 @@ class TrpcClient @Inject constructor(
     private var baseUrl: String = ""
     private var authToken: String? = null
 
-    fun setBaseUrl(url: String) {
-        baseUrl = url.trimEnd('/')
-    }
-
+    fun setBaseUrl(url: String) { baseUrl = url.trimEnd('/') }
     fun getBaseUrl(): String = baseUrl
+    fun setAuthToken(token: String?) { authToken = token }
 
-    fun setAuthToken(token: String?) {
-        authToken = token
-    }
-
-    /** Quick connectivity test — returns true if the server responds at /trpc */
     suspend fun checkConnectivity(): Result<Boolean> = runCatching {
-        val result = queryRaw("system.status")
-        result is kotlinx.serialization.json.JsonObject
+        val data = executeRaw("system.status", null, isQuery = true)
+        data is JsonObject
     }
 
-    /** Execute a tRPC query with a typed deserializer */
     suspend fun <T> query(
         procedure: String,
         params: Map<String, JsonElement>? = null,
         deserializer: kotlinx.serialization.KSerializer<T>,
-    ): Result<T> = execute("query", procedure, params, deserializer)
+    ): Result<T> = execute(procedure, params, isQuery = true, deserializer)
 
-    /** Execute a tRPC mutation with a typed deserializer */
     suspend fun <T> mutation(
         procedure: String,
         params: Map<String, JsonElement>? = null,
         deserializer: kotlinx.serialization.KSerializer<T>,
-    ): Result<T> = execute("mutation", procedure, params, deserializer)
+    ): Result<T> = execute(procedure, params, isQuery = false, deserializer)
 
-    /**
-     * Execute a tRPC call and return the raw inner JSON element from result.data.
-     * Avoids generic type erasure issues with TrpcSuccess<T>.
-     */
-    private suspend fun queryRaw(procedure: String): JsonElement = executeRaw("query", procedure, null)
-
-    private suspend fun executeRaw(
-        method: String,
+    private suspend fun <T> execute(
         procedure: String,
         params: Map<String, JsonElement>?,
+        isQuery: Boolean,
+        deserializer: kotlinx.serialization.KSerializer<T>,
+    ): Result<T> = runCatching {
+        val data = executeRaw(procedure, params, isQuery)
+        json.decodeFromJsonElement(deserializer, data)
+    }
+
+    /**
+     * Execute raw tRPC HTTP call and return result.data as JsonElement.
+     *
+     * tRPC v10 protocol:
+     *   GET  /trpc/{path}?batch=1&input=<json>   for queries
+     *   POST /trpc/{path}?batch=1                for mutations (body = input)
+     *   Response: [{ "result": { "data": <value> } }]
+     */
+    private suspend fun executeRaw(
+        procedure: String,
+        params: Map<String, JsonElement>?,
+        isQuery: Boolean,
     ): JsonElement {
-        val paramList = mutableListOf(json.encodeToJsonElement(procedure))
-        if (params != null) {
-            paramList.add(json.encodeToJsonElement(params))
+        val inputJson = if (params != null) {
+            json.encodeToString(kotlinx.serialization.serializer(), params)
+        } else {
+            "{}"
         }
 
-        val envelope = TrpcEnvelope(method = method, params = paramList)
-        val body = json.encodeToString(TrpcEnvelope.serializer(), envelope)
-            .toRequestBody("application/json".toMediaType())
-
         val requestBuilder = Request.Builder()
-            .url("$baseUrl/trpc")
-            .post(body)
+
+        if (isQuery) {
+            // tRPC queries use GET
+            requestBuilder
+                .url("$baseUrl/trpc/$procedure?batch=1&input=$inputJson")
+                .get()
+        } else {
+            // tRPC mutations use POST
+            requestBuilder
+                .url("$baseUrl/trpc/$procedure?batch=1")
+                .post(inputJson.toRequestBody("application/json".toMediaType()))
+        }
 
         authToken?.let { token ->
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
         val response = client.newCall(requestBuilder.build()).execute()
-        val responseBody = response.body?.string() ?: throw Exception("Empty response from server")
+        val responseBody = response.body?.string()
+            ?: throw Exception("Empty response from server at $procedure")
 
         if (!response.isSuccessful) {
-            val errorDetail = try {
-                json.decodeFromString<TrpcErrorResponse>(responseBody)
+            // Try to parse tRPC error from response body
+            val errorMsg = try {
+                val err = json.decodeFromString<TrpcErrorResponse>(responseBody)
+                err.error.message
             } catch (_: Exception) {
                 null
             }
-            throw Exception(errorDetail?.error?.message ?: "Server returned HTTP ${response.code}")
+            throw Exception(errorMsg ?: "HTTP ${response.code} from $procedure")
         }
 
-        // Parse as raw JSON to avoid generic type erasure
-        val root = json.parseToJsonElement(responseBody).jsonObject
-        val resultObj = root["result"]?.jsonObject
-            ?: throw Exception("Invalid tRPC response: missing 'result'")
+        // tRPC wraps response in array: [{ "result": { "data": <value> } }]
+        val rootArray = json.parseToJsonElement(responseBody).jsonArray
+        if (rootArray.isEmpty()) {
+            throw Exception("Empty response array from $procedure")
+        }
+        val first = rootArray[0].jsonObject
+        val resultObj = first["result"]?.jsonObject
+            ?: throw Exception("tRPC error at $procedure: missing 'result' in response")
         val data = resultObj["data"]
-            ?: throw Exception("Invalid tRPC response: missing 'result.data'")
+            ?: throw Exception("tRPC error at $procedure: missing 'result.data' in response")
 
         return data
-    }
-
-    private suspend fun <T> execute(
-        method: String,
-        procedure: String,
-        params: Map<String, JsonElement>?,
-        deserializer: kotlinx.serialization.KSerializer<T>,
-    ): Result<T> = runCatching {
-        val data = executeRaw(method, procedure, params)
-        json.decodeFromJsonElement(deserializer, data)
     }
 }
