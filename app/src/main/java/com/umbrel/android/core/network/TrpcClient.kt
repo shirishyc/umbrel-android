@@ -15,10 +15,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /**
  * Kotlin-native tRPC HTTP client.
  *
- * tRPC v10 HTTP transport protocol:
- *   - Query:  GET  /trpc/{procedure}?batch=1&input={}
- *   - Mutation: POST /trpc/{procedure} with body = JSON input
- *   - Response: [{ "result": { "data": ... } }]  (array, for batch=1)
+ * tRPC v10 HTTP transport protocol (default):
+ *   POST /trpc/{procedure}?batch=1
+ *   Content-Type: application/json
+ *   Body: JSON-serialized input (or {} for no input)
+ *
+ *   Response: [{ "result": { "data": <value> } }]  (always array, batch=1)
  *
  * Auth: Authorization: Bearer <token> header
  */
@@ -35,7 +37,7 @@ class TrpcClient @Inject constructor(
     fun setAuthToken(token: String?) { authToken = token }
 
     suspend fun checkConnectivity(): Result<Boolean> = runCatching {
-        val data = executeRaw("system.status", null, isQuery = true)
+        val data = executeRaw("system.status", null)
         data is JsonObject
     }
 
@@ -43,36 +45,41 @@ class TrpcClient @Inject constructor(
         procedure: String,
         params: Map<String, JsonElement>? = null,
         deserializer: kotlinx.serialization.KSerializer<T>,
-    ): Result<T> = execute(procedure, params, isQuery = true, deserializer)
+    ): Result<T> = execute(procedure, params, deserializer)
 
     suspend fun <T> mutation(
         procedure: String,
         params: Map<String, JsonElement>? = null,
         deserializer: kotlinx.serialization.KSerializer<T>,
-    ): Result<T> = execute(procedure, params, isQuery = false, deserializer)
+    ): Result<T> = execute(procedure, params, deserializer)
 
     private suspend fun <T> execute(
         procedure: String,
         params: Map<String, JsonElement>?,
-        isQuery: Boolean,
         deserializer: kotlinx.serialization.KSerializer<T>,
     ): Result<T> = runCatching {
-        val data = executeRaw(procedure, params, isQuery)
+        val data = executeRaw(procedure, params)
         json.decodeFromJsonElement(deserializer, data)
     }
 
     /**
-     * Execute raw tRPC HTTP call and return result.data as JsonElement.
+     * Execute raw tRPC HTTP call.
      *
-     * tRPC v10 protocol:
-     *   GET  /trpc/{path}?batch=1&input=<json>   for queries
-     *   POST /trpc/{path}?batch=1                for mutations (body = input)
-     *   Response: [{ "result": { "data": <value> } }]
+     * tRPC v10 default protocol uses POST for both queries and mutations.
+     *
+     * Request:
+     *   POST /trpc/{procedure}?batch=1
+     *   Content-Type: application/json
+     *   Body: JSON input (e.g. {} or {"password":"..."})
+     *
+     * Response:
+     *   Status: 200
+     *   Body:   [{ "result": { "data": <value> } }]
+     *           or [{ "error": { "message": "...", "code": -32600 } }]
      */
     private suspend fun executeRaw(
         procedure: String,
         params: Map<String, JsonElement>?,
-        isQuery: Boolean,
     ): JsonElement {
         val inputJson = if (params != null) {
             json.encodeToString(kotlinx.serialization.serializer(), params)
@@ -80,49 +87,48 @@ class TrpcClient @Inject constructor(
             "{}"
         }
 
-        val requestBuilder = Request.Builder()
+        val request = Request.Builder()
+            .url("$baseUrl/trpc/$procedure?batch=1")
+            .post(inputJson.toRequestBody("application/json".toMediaType()))
+            .apply {
+                authToken?.let { addHeader("Authorization", "Bearer $it") }
+            }
+            .build()
 
-        if (isQuery) {
-            // tRPC queries use GET
-            requestBuilder
-                .url("$baseUrl/trpc/$procedure?batch=1&input=$inputJson")
-                .get()
-        } else {
-            // tRPC mutations use POST
-            requestBuilder
-                .url("$baseUrl/trpc/$procedure?batch=1")
-                .post(inputJson.toRequestBody("application/json".toMediaType()))
-        }
-
-        authToken?.let { token ->
-            requestBuilder.addHeader("Authorization", "Bearer $token")
-        }
-
-        val response = client.newCall(requestBuilder.build()).execute()
+        val response = client.newCall(request).execute()
         val responseBody = response.body?.string()
             ?: throw Exception("Empty response from server at $procedure")
 
         if (!response.isSuccessful) {
-            // Try to parse tRPC error from response body
             val errorMsg = try {
-                val err = json.decodeFromString<TrpcErrorResponse>(responseBody)
-                err.error.message
-            } catch (_: Exception) {
-                null
-            }
+                json.decodeFromString<TrpcErrorResponse>(responseBody).error.message
+            } catch (_: Exception) { null }
             throw Exception(errorMsg ?: "HTTP ${response.code} from $procedure")
         }
 
-        // tRPC wraps response in array: [{ "result": { "data": <value> } }]
-        val rootArray = json.parseToJsonElement(responseBody).jsonArray
+        // tRPC wraps response in an array for batch=1: [{ "result": { "data": ... } }]
+        val rootArray = try {
+            json.parseToJsonElement(responseBody).jsonArray
+        } catch (e: Exception) {
+            throw Exception("Invalid tRPC response (not an array): ${responseBody.take(200)}")
+        }
+
         if (rootArray.isEmpty()) {
             throw Exception("Empty response array from $procedure")
         }
+
         val first = rootArray[0].jsonObject
+
+        // Check for tRPC error
+        first["error"]?.let { errObj ->
+            val msg = (errObj as? JsonObject)?.get("message")
+            throw Exception("tRPC error: ${msg?.toString() ?: "Unknown error"}")
+        }
+
         val resultObj = first["result"]?.jsonObject
-            ?: throw Exception("tRPC error at $procedure: missing 'result' in response")
+            ?: throw Exception("tRPC response missing 'result' field: ${responseBody.take(200)}")
         val data = resultObj["data"]
-            ?: throw Exception("tRPC error at $procedure: missing 'result.data' in response")
+            ?: throw Exception("tRPC response missing 'result.data' field: ${responseBody.take(200)}")
 
         return data
     }
