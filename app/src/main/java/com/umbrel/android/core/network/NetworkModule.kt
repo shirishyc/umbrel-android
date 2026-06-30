@@ -85,7 +85,7 @@ object NetworkModule {
         @ApplicationContext context: Context,
     ): ImageLoader = ImageLoader.Builder(context)
         .memoryCache {
-            MemoryCache.Builder()
+            MemoryCache.Builder(context)
                 .maxSizePercent(0.25)
                 .build()
         }
