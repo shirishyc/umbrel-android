@@ -39,7 +39,7 @@ class TrpcClient @Inject constructor(
     /** Quick connectivity test — returns true if the server responds at /trpc */
     suspend fun checkConnectivity(): Result<Boolean> = runCatching {
         val result = queryRaw("system.status")
-        result.isNotEmpty()
+        result is kotlinx.serialization.json.JsonObject
     }
 
     /** Execute a tRPC query with a typed deserializer */
