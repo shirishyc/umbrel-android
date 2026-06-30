@@ -17,6 +17,7 @@ data class SetupUiState(
     val isConnecting: Boolean = false,
     val discoveredServers: List<DiscoveredServer> = emptyList(),
     val isScanning: Boolean = true,
+    val diagnostics: List<String> = emptyList(),
     val error: String? = null,
 )
 
@@ -35,7 +36,6 @@ class SetupViewModel @Inject constructor(
 
     private fun startDiscovery() {
         viewModelScope.launch {
-            // Collect discovered servers
             serverDiscovery.discoverServers().collect { server ->
                 val current = _uiState.value.discoveredServers
                 if (current.none { it.ipAddress == server.ipAddress }) {
@@ -47,7 +47,6 @@ class SetupViewModel @Inject constructor(
             }
         }
 
-        // Also try resolving umbrel.local directly as fallback
         viewModelScope.launch {
             val resolved = serverDiscovery.resolveUmbrelLocal()
             if (resolved != null) {
@@ -59,20 +58,20 @@ class SetupViewModel @Inject constructor(
                     )
                 }
             } else {
-                // No direct resolution, scanning may find it
                 _uiState.value = _uiState.value.copy(isScanning = false)
             }
         }
     }
 
     fun updateUrl(url: String) {
-        _uiState.value = _uiState.value.copy(serverUrl = url, error = null)
+        _uiState.value = _uiState.value.copy(serverUrl = url, error = null, diagnostics = emptyList())
     }
 
     fun selectServer(server: DiscoveredServer) {
         _uiState.value = _uiState.value.copy(
             serverUrl = server.url,
             error = null,
+            diagnostics = emptyList(),
         )
     }
 
@@ -81,16 +80,61 @@ class SetupViewModel @Inject constructor(
         if (url.isBlank()) return
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isConnecting = true, error = null)
+            _uiState.value = _uiState.value.copy(
+                isConnecting = true,
+                error = null,
+                diagnostics = emptyList(),
+            )
+
+            val diag = mutableListOf<String>()
+
+            // Step 1: Basic ping
+            diag.add("🔍 Pinging $url ...")
+            authRepository.pingServer(url).fold(
+                onSuccess = { diag.add("  ✅ $it") },
+                onFailure = { e ->
+                    diag.add("  ❌ ${e.message}")
+                    _uiState.value = _uiState.value.copy(
+                        isConnecting = false,
+                        diagnostics = diag,
+                        error = e.message ?: "Server not reachable. Check:\n• Both devices on same WiFi\n• URL is correct\n• No VPN blocking",
+                    )
+                    return@launch
+                },
+            )
+
+            // Step 2: Try tRPC call
+            diag.add("🔍 Testing tRPC API at /trpc/system.status ...")
+            authRepository.testTrpc(url).fold(
+                onSuccess = { diag.add("  ✅ $it") },
+                onFailure = { e ->
+                    diag.add("  ❌ ${e.message}")
+                    _uiState.value = _uiState.value.copy(
+                        isConnecting = false,
+                        diagnostics = diag,
+                        error = "Server responded but tRPC failed.\n${e.message}",
+                    )
+                    return@launch
+                },
+            )
+
+            // Step 3: Full login flow
+            diag.add("🔍 Configuring server...")
             authRepository.configureServer(url).fold(
                 onSuccess = {
-                    _uiState.value = _uiState.value.copy(isConnecting = false)
+                    diag.add("  ✅ Connected!")
+                    _uiState.value = _uiState.value.copy(
+                        isConnecting = false,
+                        diagnostics = diag,
+                    )
                     onSuccess()
                 },
                 onFailure = { e ->
+                    diag.add("  ❌ ${e.message}")
                     _uiState.value = _uiState.value.copy(
                         isConnecting = false,
-                        error = e.message ?: "Connection failed. Check the URL and try again.",
+                        diagnostics = diag,
+                        error = e.message ?: "Connection failed",
                     )
                 },
             )

@@ -148,4 +148,16 @@ class AuthRepository @Inject constructor(
             true
         }.getOrDefault(false)
     }
+
+    /** Diagnostic: ping the server URL */
+    suspend fun pingServer(url: String): Result<String> {
+        trpcClient.setBaseUrl(url.trimEnd('/'))
+        return trpcClient.pingServer()
+    }
+
+    /** Diagnostic: test tRPC raw call */
+    suspend fun testTrpc(url: String): Result<String> {
+        trpcClient.setBaseUrl(url.trimEnd('/'))
+        return trpcClient.rawTrpcCall("system.status", "{}")
+    }
 }
