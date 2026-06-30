@@ -83,18 +83,10 @@ object NetworkModule {
     @Singleton
     fun provideImageLoader(
         @ApplicationContext context: Context,
-        client: OkHttpClient,
     ): ImageLoader = ImageLoader.Builder(context)
-        .okHttpClient { client }
         .memoryCache {
             MemoryCache.Builder()
                 .maxSizePercent(0.25)
-                .build()
-        }
-        .diskCache {
-            DiskCache.Builder()
-                .directory(context.cacheDir.resolve("coil_cache"))
-                .maxSizePercent(0.02)
                 .build()
         }
         .build()
